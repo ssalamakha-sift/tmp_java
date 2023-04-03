@@ -23,8 +23,8 @@ jobs:
           cat ./gradle/wrapper/gradle-wrapper.properties
       - name: Prepare build.gradle
         run: |
-          sed -i 's/^\s*username =.*sonatypeUsername\                username = "${{ secrets.SUSER }}"/g' ./build.gradle
-          sed -i 's/^\s*password =.*sonatypePassword\                password = "${{ secrets.SPASSWORD }}"/g' ./build.gradle
+          sed -i -E 's/^\s*username =.*sonatypeUsername\                username = "${{ secrets.SUSER }}"/g' ./build.gradle
+          sed -i -E 's/^\s*password =.*sonatypePassword\                password = "${{ secrets.SPASSWORD }}"/g' ./build.gradle
       - name: Publish to Sonatype
         run: |
           echo "OK"
