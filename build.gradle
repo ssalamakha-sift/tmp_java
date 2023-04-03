@@ -1,0 +1,185 @@
+
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+apply plugin: 'java-library-distribution'
+
+group = 'com.siftscience'
+version = '3.8.0'
+
+repositories {
+    mavenCentral()
+}
+
+compileJava {
+  sourceCompatibility = 1.8
+  targetCompatibility = 1.8
+}
+
+compileTestJava {
+  sourceCompatibility = 1.8
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.11'
+    testCompile group: 'org.skyscreamer', name: 'jsonassert', version: '1.3.0'
+    testCompile group: 'com.squareup.okhttp3', name: 'mockwebserver', version: '4.10.0'
+    testCompile group: 'org.hamcrest', name: 'hamcrest-library', version: '1.3'
+    compile 'com.google.code.gson:gson:2.10'
+    compile 'com.squareup.okhttp3:okhttp:4.10.0'
+    compile 'com.squareup.okio:okio:3.2.0'
+    compile 'commons-codec:commons-codec:1.15'
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.1'
+}
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+}
+
+task sourceJar(type: Jar) {
+    classifier "sources"
+    from sourceSets.main.allSource
+}
+
+task javaDocJar(type: Jar) {
+    classifier "javadoc"
+    from javadoc
+}
+
+artifacts {
+    archives jar
+    archives sourceJar
+    archives javaDocJar
+}
+
+signing {
+    required {
+        System.getenv('CIRCLE_BRANCH') == null
+    }
+    sign configurations.archives
+}
+
+def pomConfig = {
+    name "${project.name}"
+    url 'https://github.com/SiftScience/sift-java'
+    packaging 'jar'
+    licenses {
+        license {
+            name 'MIT License'
+            url 'https://github.com/SiftScience/sift-java/blob/master/LICENSE'
+            distribution 'repo'
+        }
+    }
+    inceptionYear 2016
+    organization {
+        name 'Sift Science'
+        url 'https://siftscience.com'
+    }
+    developers {
+        developer {
+            id 'lopatin'
+            name 'Alex Lopatin'
+            url 'https://github.com/lopatin'
+        }
+    }
+    scm {
+        url 'https://github.com/SiftScience/sift-java'
+        connection 'scm:git:https://github.com/SiftScience/sift-java.git'
+        developerConnection 'scm:git:ssh://git@github.com/SiftScience/sift-java.git'
+    }
+}
+
+publishing {
+    publications {
+        jar(MavenPublication) {
+            from components.java
+
+            artifact(sourceJar) {
+                classifier = "sources"
+            }
+
+            artifact(javaDocJar) {
+                classifier = "javadoc"
+            }
+
+            pom.packaging = "jar"
+
+            pom.withXml {
+                configurations.compile.resolvedConfiguration.firstLevelModuleDependencies.each {
+                    dep ->
+                        asNode().dependencies[0].dependency.find {
+                            it.artifactId[0].text() == dep.moduleName &&
+                                    it.groupId[0].text() == dep.moduleGroup
+                        }?.scope[0]?.value = 'compile'
+                }
+            }
+
+            pom.withXml {
+                def root = asNode()
+                def last = root.children().last()
+                last.parent().appendNode('description', 'Sift Science Java API')
+                last + pomConfig
+            }
+
+            // Sign the pom.xml.
+            pom.withXml {
+                def pomFile = file("${project.buildDir}/generated-pom.xml")
+                writeTo(pomFile)
+                def pomAscFile = signing.sign(pomFile).signatureFiles[0]
+                artifact(pomAscFile) {
+                    classifier = null
+                    extension = 'pom.asc'
+                }
+                pomFile.delete()
+            }
+
+            // Sign the artifacts.
+            project.tasks.signArchives.signatureFiles.each {
+                artifact(it) {
+                    def matcher = it.file =~ /-(sources|javadoc)\.jar\.asc$/
+                    def zipMatcher = it.file =~ /\.(zip|tar)\.asc$/
+                    def extensionPrefix = 'jar'
+                    if (zipMatcher.find()) {
+                        extensionPrefix = zipMatcher.group(1)
+                    }
+                    if (matcher.find()) {
+                        classifier = matcher.group(1)
+                    } else {
+                        classifier = null
+                    }
+
+                    extension = extensionPrefix + '.asc'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name 'staging'
+            url 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+
+            credentials {
+                username = "${sonatypeUsername}"
+                password = "${sonatypePassword}"
+            }
+        }
+    }
+}
+
+model {
+    tasks.publishJarPublicationToStagingRepository {
+        dependsOn(project.tasks.signArchives)
+    }
+}
+
+distributions {
+    main {
+        baseName = 'sift-java'
+    }
+}
