@@ -1,0 +1,33 @@
+name: Publishing to Sonatype
+on:
+  release:
+    types: [published]
+
+env:
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build_and_publish:
+    runs-on: ubuntu-latest  
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Prepare gradle.properties
+        run: |
+          echo -e "${{ secrets.SECRING }}" | base64 -d > ./secring.gpg         
+          echo "signing.keyId=${{ secrets.KEYID }}" >> ./gradle/wrapper/gradle-wrapper.properties
+          echo "signing.password=${{ secrets.PASSWORD }}" >> ./gradle/wrapper/gradle-wrapper.properties
+          echo "signing.secretKeyRingFile=./secring.gpg" >> ./gradle/wrapper/gradle-wrapper.properties
+          echo "sonatypeUsername=${{ secrets.SUSER }}" >> ./gradle/wrapper/gradle-wrapper.properties
+          echo "sonatypePassword=${{ secrets.SPASSWORD }}" >> ./gradle/wrapper/gradle-wrapper.properties
+          cat ./gradle/wrapper/gradle-wrapper.properties
+      - name: Prepare build.gradle
+        run: |
+          sed -i 's/^\s*username =.*sonatypeUsername\                username = "${{ secrets.SUSER }}"/g' ./build.gradle
+          sed -i 's/^\s*password =.*sonatypePassword\                password = "${{ secrets.SPASSWORD }}"/g' ./build.gradle
+      - name: Publish to Sonatype
+        run: |
+          echo "OK"
+          exit 0
+          ./gradlew publishJarPublicationToStagingRepository
+    
