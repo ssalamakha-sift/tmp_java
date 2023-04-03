@@ -23,11 +23,11 @@ jobs:
           cat ./gradle/wrapper/gradle-wrapper.properties
       - name: Prepare build.gradle
         run: |
-          sed 's/.*sonatypeUsername.*/                username = "${{ secrets.SUSER }}"/' ./build.gradle
+          sed -i 's/.*sonatypeUsername.*/                username = "${{ secrets.SUSER }}"/' ./build.gradle
           sed -i 's/.*sonatypePassword.*/                password = "${{ secrets.SPASSWORD }}"/' ./build.gradle
-          cat ./build.gradle
       - name: Publish to Sonatype
         run: |
+          cat ./build.gradle
           echo "OK"
           exit 0
           ./gradlew publishJarPublicationToStagingRepository
